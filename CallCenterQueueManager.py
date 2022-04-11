@@ -1,4 +1,8 @@
-import cmd, sys
+# Copyright (c) Twisted Matrix Laboratories.
+# See LICENSE for details.
+
+import json, cmd
+from twisted.internet import reactor, protocol
 
 class Operator:
     def __init__(self, id):
@@ -73,13 +77,13 @@ class CallCenter(cmd.Cmd):
         for i in self.ops:
             if(i.isAvailable()):
                 i.ring(call)
-                print("Call " + call + " ringing for operator " + i.getId())
+                self.callPrint("Call " + call + " ringing for operator " + i.getId())
                 return True
         return False
 
     def enqueue(self, call):
         self.q.enqueue(call)
-        print("Call " + call + " waiting in queue")
+        self.callPrint("Call " + call + " waiting in queue")
 
     def dequeue(self):
         while(not self.q.empty()):
@@ -89,7 +93,7 @@ class CallCenter(cmd.Cmd):
                 return
 
     def do_call(self, call):
-        print("Call " + call + " received")
+        self.callPrint("Call " + call + " received")
         if(not self.call(call)):
             self.enqueue(call)
 
@@ -97,29 +101,54 @@ class CallCenter(cmd.Cmd):
         for i in self.ops:
             if(i.getId() == op):
                 call = i.answer()
-                print("Call " + call + " answered by operator " + i.getId())
+                self.callPrint("Call " + call + " answered by operator " + i.getId())
                 return
 
     def do_reject(self, op):
         for i in self.ops:
             if(i.getId() == op):
                 call = i.reject()
-                print("Call " + call + " rejected by operator " + i.getId())
+                self.callPrint("Call " + call + " rejected by operator " + i.getId())
                 self.call(call)
                 break
         self.dequeue()
 
     def do_hangup(self, call):
         if(self.q.remove(call)):
-            print("Call " + call + " missed")
+            self.callPrint("Call " + call + " missed")
         for i in self.ops:
             if(i.getCall() == call):
                 ans = i.finish()
                 if(ans):
-                    print("Call " + call + " finished and operator " + i.getId() + " available")
+                    self.callPrint("Call " + call + " finished and operator " + i.getId() + " available")
                 else:
-                    print("Call " + call + " missed")
+                    self.callPrint("Call " + call + " missed")
         self.dequeue()
+        
+    def callPrint(self, data):
+        print(data)
 
-if __name__ == '__main__':
-    CallCenter().cmdloop()
+class Echo(protocol.Protocol, CallCenter):
+    """This is just about the simplest possible protocol"""
+
+    def dataReceived(self, data):
+        "As soon as any data is received, write it back."
+        y = json.loads(data)
+        self.onecmd(y["command"]+" "+y["id"])
+
+    def callPrint(self, data):
+        y = {"response" : data}
+        self.transport.write(json.dumps(y).encode('utf-8'))
+
+
+def main():
+    """This runs the protocol on port 5678"""
+    factory = protocol.ServerFactory()
+    factory.protocol = Echo
+    reactor.listenTCP(5678, factory)
+    reactor.run()
+
+
+# this only runs if the module was *not* imported
+if __name__ == "__main__":
+    main()
