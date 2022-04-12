@@ -1,6 +1,3 @@
-# Copyright (c) Twisted Matrix Laboratories.
-# See LICENSE for details.
-
 import json, cmd
 from twisted.internet import reactor, protocol
 
@@ -128,27 +125,22 @@ class CallCenter(cmd.Cmd):
     def callPrint(self, data):
         print(data)
 
-class Echo(protocol.Protocol, CallCenter):
-    """This is just about the simplest possible protocol"""
+class Server(protocol.Protocol, CallCenter):
 
     def dataReceived(self, data):
-        "As soon as any data is received, write it back."
         y = json.loads(data)
         self.onecmd(y["command"]+" "+y["id"])
 
     def callPrint(self, data):
         y = {"response" : data}
-        self.transport.write(json.dumps(y).encode('utf-8'))
-
+        self.transport.write((json.dumps(y)).encode('utf-8'))
 
 def main():
     """This runs the protocol on port 5678"""
     factory = protocol.ServerFactory()
-    factory.protocol = Echo
+    factory.protocol = Server
     reactor.listenTCP(5678, factory)
     reactor.run()
 
-
-# this only runs if the module was *not* imported
 if __name__ == "__main__":
     main()

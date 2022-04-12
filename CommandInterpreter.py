@@ -1,39 +1,53 @@
-# Copyright (c) Twisted Matrix Laboratories.
-# See LICENSE for details.
-
-
-"""
-An example client. Run simpleserv.py first before running this.
-"""
-
-import json
+import json, cmd
 from twisted.internet import reactor, protocol
 
+class Client(protocol.Protocol, cmd.Cmd):
+    def do_call(self, call):
+        return
 
-# a client protocol
+    def do_answer(self, op):
+        return
 
+    def do_reject(self, op):
+        return
 
-class EchoClient(protocol.Protocol):
-    """Once connected, send a message, then print the result."""
+    def do_hangup(self, call):
+        return
+
+    def default(self, line):
+        raise Exception()
 
     def connectionMade(self):
-        data = input().split()
-        y = {"command" : data[0], "id" : data[1]}
-        self.transport.write(json.dumps(y).encode('utf-8'))
+        self.readData()
+
+    def readData(self):
+        try:
+            data = input(">>> ").split()
+            self.onecmd(data[0]+' '+data[1])
+            y = {"command" : data[0], "id" : data[1]}
+            self.transport.write(json.dumps(y).encode('utf-8'))
+        except:
+            print("invalid command")
+            self.readData()
 
     def dataReceived(self, data):
-        "As soon as any data is received, write it back."
-        print(data)
-        y = json.loads(data.decode("utf-8"))
-        print(y["response"])
-        self.connectionMade()
-
+        try:
+            y = json.loads(data.decode("utf-8"))
+            print(y["response"])
+        except:
+            res = data.decode("utf-8").split("}{")
+            y = json.loads(res[0]+'}')
+            print(y["response"])
+            y = json.loads('{'+res[1])
+            print(y["response"])
+        self.readData()
+            
     def connectionLost(self, reason):
         print("connection lost")
 
 
-class EchoFactory(protocol.ClientFactory):
-    protocol = EchoClient
+class Factory(protocol.ClientFactory):
+    protocol = Client
 
     def clientConnectionFailed(self, connector, reason):
         print("Connection failed - goodbye!")
@@ -43,14 +57,10 @@ class EchoFactory(protocol.ClientFactory):
         print("Connection lost - goodbye!")
         reactor.stop()
 
-
-# this connects the protocol to a server running on port 5678
 def main():
-    f = EchoFactory()
+    f = Factory()
     reactor.connectTCP("localhost", 5678, f)
     reactor.run()
 
-
-# this only runs if the module was *not* imported
 if __name__ == "__main__":
     main()
